@@ -6,7 +6,6 @@ package mbox
 import "strings"
 import "testing"
 
-
 const mboxWith1Message = `From foo@bar.com
 Subject: Hello world
 
@@ -31,7 +30,7 @@ func expectNoError(t *testing.T, s string, msg string, pmr **MboxReader) {
 	stringReader := strings.NewReader(s)
 	*pmr, err = CreateMboxReader(stringReader)
 	if err != nil {
-		t.Error(msg)
+		t.Error(msg, ":", err)
 	}
 }
 
@@ -62,10 +61,18 @@ func TestMalformedMboxFile30(t *testing.T) {
 	expectError(t, " From ", "Leading whitespace on the From line must produce an error")
 }
 
+// Given a corrupted mbox file with a valid size but an otherwise empty From line
+//  AND I successfully open the file
+// When I try to read the first message
+// Then I expect an error.
+func TestMalformedMboxFile40(t *testing.T) {
+	expectError(t, "From   \t\t  \t\t", "Sender address cannot be whitespace")
+}
+
 // Given a valid mbox file
 // When I try to open the file
 // Then I expect no error and a valid MboxReader instance.
-func TestMboxFile10(t *testing.T) {
+func TestOkMboxFile10(t *testing.T) {
 	var mr *MboxReader
 
 	expectNoError(t, mboxWith1Message, "Mbox file with one valid message should not yield an error.", &mr)
@@ -74,4 +81,53 @@ func TestMboxFile10(t *testing.T) {
 		t.Error("Returned MboxReader is nil for some reason")
 	}
 }
+
+// Given a valid mbox file
+//  AND I successfully open the file
+// When I try to read from the file
+// Then I expect no error and a valid message instance.
+func TestOkMboxFile20(t *testing.T) {
+	stringReader := strings.NewReader(mboxWith1Message)
+	mr, err := CreateMboxReader(stringReader)
+	if err != nil {
+		t.Error("TestOkMboxFile20: ", err)
+		return
+	}
+	msg, err := mr.ReadMessage()
+	if err != nil {
+		t.Error("TestOkMboxFile20: ", err)
+		return
+	}
+	if msg == nil {
+		t.Error("Message instance is nil despite no error")
+		return
+	}
+}
+
+// Given a valid mbox file
+//  AND I successfully open the file
+// When I read from the file
+// Then I expect a message with correct sending address.
+func TestOkMboxFile30(t *testing.T) {
+	stringReader := strings.NewReader(mboxWith1Message)
+	mr, err := CreateMboxReader(stringReader)
+	if err != nil {
+		t.Error("TestOkMboxFile30: ", err)
+		return
+	}
+	msg, err := mr.ReadMessage()
+	if err != nil {
+		t.Error("TestOkMboxFile30: ", err)
+		return
+	}
+	if msg.SendingAddress != "foo@bar.com" {
+		t.Error("TestOkMboxFile30: Expected valid sending address")
+		return
+	}
+}
+
+// Given a valid mbox file
+//  AND I successfully open the file
+// When I read from the file
+// Then I expect a message with correct headers.
 
