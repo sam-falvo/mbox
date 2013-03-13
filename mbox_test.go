@@ -13,6 +13,28 @@ Subject: Hello world
 Test message
 `
 
+const mboxWith3Messages = `From foo@bar.com
+Subject: Hello world
+
+Test message
+From foo@bar.com
+From: Foo S. Ball <foo@bar.com>
+To: Anyone W. Cares <anyone@bar.com>
+Subject: You're all fired!
+
+Haha, just joking.
+I wasn't really trying to be a jerk.
+It's just that it's April fools, and all.
+From foo@bar.com
+From: Foo S. Ball <foo@bar.com>
+To: Loraine <amiga@bar.com>
+Subject: Stella rules!
+
+Old flames never die out.  They just smolder and smoke until you leave the room.
+BTW, thanks for the Boing beach ball.
+
+`
+
 const mboxWithMessageNoHeaders = `From foo@bar.com
 
 Test message
@@ -354,6 +376,87 @@ func TestOkMboxFile70(t *testing.T) {
 		n, err = br.Read(bs)
 		if err != io.EOF {
 			t.Error("Expected io.EOF; got ", err, n, string(bs))
+		}
+	})
+}
+
+// Given a valid mbox with three messages
+// When I read the messages,
+// Then I expect to see each message in turn.
+func TestOkMboxFile80(t *testing.T) {
+	withOpenMboxReader(t, "TestOkMboxFile80", mboxWith3Messages, func(mr *MboxReader) {
+		msg1, err := mr.ReadMessage()
+		if err != nil {
+			t.Error("TestOkMboxFile80: ", err)
+			return
+		}
+		msg2, err := mr.ReadMessage()
+		if err == nil {
+			t.Error("Expected error here because we haven't finished reading the body of msg1 yet")
+			return
+		}
+		br := msg1.BodyReader()
+		bs := make([]byte, 1000)
+		err = nil
+		for err == nil {
+			bs = bs[:cap(bs)]
+			n, err := br.Read(bs)
+			bs = bs[:n]
+
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				t.Error("TestOkMboxFile80: ", err)
+				return
+			}
+		}
+
+		msg2, err = mr.ReadMessage()
+		if err != nil {
+			t.Error("TestOkMboxFile80: ", err)
+			return
+		}
+		br = msg2.BodyReader()
+		bs = make([]byte, 1000)
+		err = nil
+		for err == nil {
+			bs = bs[:cap(bs)]
+			n, err := br.Read(bs)
+			bs = bs[:n]
+
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				t.Error("TestOkMboxFile80: ", err)
+				return
+			}
+		}
+
+		msg3, err := mr.ReadMessage()
+		if err != nil {
+			t.Error("TestOkMboxFile80: ", err)
+			return
+		}
+		br = msg3.BodyReader()
+		bs = make([]byte, 1000)
+		err = nil
+		for err == nil {
+			bs = bs[:cap(bs)]
+			n, err := br.Read(bs)
+			bs = bs[:n]
+
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				t.Error("TestOkMboxFile80: ", err)
+				return
+			}
+		}
+
+		_, err = mr.ReadMessage()
+		if err != io.EOF {
+			t.Error("EOF expected after reading all messages")
+			return
 		}
 	})
 }
