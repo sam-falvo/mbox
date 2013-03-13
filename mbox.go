@@ -35,6 +35,12 @@ func (m *MboxReader) ReadMessage() (msg *Message, err error) {
 		return
 	}
 
+	msg.headers, err = m.parseHeaders()
+	if err != nil {
+		msg = nil
+		return
+	}
+
 	return
 }
 
@@ -71,6 +77,71 @@ func extractSendingAddress(m *MboxReader) (who string, err error) {
 	return
 }
 
+// parseHeaders will read in the headers from the mbox file.  It builds a
+// mapping from string to an array of strings.  Each header key corresponds to
+// one or more strings as received in the mbox file.  For greatest fidelity,
+// leading whitespace on continued lines is preserved.
+func (m *MboxReader) parseHeaders() (hs map[string][]string, err error) {
+	hs = make(map[string][]string, 0)
+	for {
+		key, values, err := m.parseHeader()
+		if err != nil {
+			return nil, err
+		}
+		hs[key] = values
+		if m.prefetch[0] == '\n' {
+			break
+		}
+	}
+	return hs, nil
+}
+
+// parseHeader will read in a single header from the mbox file.
+// Header attributes start with a "key: value" syntax; however, continued
+// lines thereafter just start with some flavor of whitespace.
+func (m *MboxReader) parseHeader() (key string, values []string, err error) {
+	// Headers consist of a key, a colon, and a value.  The key must not be an empty string.
+	// Therefore, the smallest possible header is K:, which takes up two characters.
+	if m.prefetchLength < 2 {
+		return "", nil, m.errorf("Header attribute expected")
+	}
+
+	if isspace(m.prefetch[0]) {
+		return "", nil, m.errorf("Unexpected continuation of a header somehow missed")
+	}
+
+	k := strings.Index(string(m.prefetch), ":")
+	if k < 1 {
+		return "", nil, m.errorf("Colon not found in expected 'key: value' syntax")
+	}
+
+	key = string(m.prefetch[0:k])
+	values = []string{strings.TrimSpace(string(m.prefetch[k+1:]))}
+	err = m.nextLine()
+	if err != nil {
+		return "", nil, err
+	}
+
+	for {
+		// Continuation lines consist of at least one whitespace and at least one regular character.
+		if (m.prefetchLength < 2) || (!isspace(m.prefetch[0])) {
+			break
+		}
+		continuation := strings.TrimRight(string(m.prefetch), " \r\n\t\b\v")
+		values = append(values, continuation)
+		err = m.nextLine()
+		if err != nil {
+			return "", nil, err
+		}
+	}
+
+	return
+}
+
+func isspace(b byte) bool {
+	return b < 33
+}
+
 // CreateMboxReader decorates an io.Reader instance with an mbox parser.
 // It will produce an error if the file doesn't appear to be an mbox-formatted file.
 // It determines this by verifying the first five characters of the file matches "From " (note the space).
@@ -99,11 +170,11 @@ func CreateMboxReader(s io.Reader) (m *MboxReader, err error) {
 // - All other errors are reported as necessary.
 func (m *MboxReader) nextLine() error {
 	slice, err := m.r.ReadSlice('\n')
-	if (err != nil) && (err != io.EOF) {
+	if err != nil {
 		return err
 	}
-	copy(m.prefetch, slice)
 	m.prefetch = m.prefetch[0:len(slice)]
+	copy(m.prefetch, slice)
 	m.prefetchLength = len(m.prefetch)
 	m.currentLine++
 	return nil
