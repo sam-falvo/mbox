@@ -3,6 +3,7 @@
 package mbox
 
 
+import "io"
 import "strings"
 import "testing"
 
@@ -47,6 +48,23 @@ Subject: Hello world
 
 Greetings and hallucinations!
 `
+
+/* *** Test Utilities *** */
+
+// in() returns true only if a string (needle) is found in an array of strings
+// (haystack).
+func in(needle string, haystack []string) (found bool) {
+	found = false
+	n := strings.TrimSpace(needle)
+	for _, straw := range haystack {
+		if strings.TrimSpace(straw) == n {
+			found = true
+		}
+	}
+	return
+}
+
+/* *** Setups of various kinds *** */
 
 // withOpenMboxReader sets up a test.  It creates a MboxReader on a given
 // string source.  If successful, it invokes the specified test, which then
@@ -98,6 +116,7 @@ func expectNoError(t *testing.T, s string, msg string, pmr **MboxReader) {
 	}
 }
 
+/* *** Test Cases *** */
 
 // Given a corrupted mbox file with a missing From header on the first line
 // When I try to open the file
@@ -306,14 +325,36 @@ func TestOkMboxFile60(t *testing.T) {
 	})
 }
 
-func in(needle string, haystack []string) (found bool) {
-	found = false
-	n := strings.TrimSpace(needle)
-	for _, straw := range haystack {
-		if strings.TrimSpace(straw) == n {
-			found = true
+// Given a valid mbox with a message with a body
+// When I read the message
+// Then I expect to access an io.Reader that lets me read in the body.
+func TestOkMboxFile70(t *testing.T) {
+	withOpenMboxReader(t, "TestOkMboxFile70", mboxWith1Message, func(mr *MboxReader) {
+		msg, err := mr.ReadMessage()
+		if err != nil {
+			t.Error("TestOkMboxFile70: ", err)
+			return
 		}
-	}
-	return
+		br := msg.BodyReader()
+		bs := make([]byte, 128)
+		n, err := br.Read(bs)
+		if err != nil {
+			t.Error("TestOkMboxFile70: ", err)
+			return
+		}
+		if n < 13 {
+			t.Error("Expected 13 characters, got ", n)
+			return
+		}
+		bs = bs[0:n]
+		if string(bs) != "Test message\n" {
+			t.Error("Expected Test message, but got ", string(bs))
+			return
+		}
+		n, err = br.Read(bs)
+		if err != io.EOF {
+			t.Error("Expected io.EOF; got ", err, n, string(bs))
+		}
+	})
 }
 

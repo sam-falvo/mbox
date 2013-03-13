@@ -26,6 +26,7 @@ type MboxReader struct {
 // the message.
 func (m *MboxReader) ReadMessage() (msg *Message, err error) {
 	msg = &Message{
+		mbox: m,
 		headers: make(map[string][]string, 0),
 	}
 
@@ -41,6 +42,12 @@ func (m *MboxReader) ReadMessage() (msg *Message, err error) {
 		return
 	}
 
+	err = m.parseBlankLine()
+	if err != nil {
+		msg = nil
+		return
+	}
+
 	return
 }
 
@@ -50,6 +57,16 @@ func (m *MboxReader) ReadMessage() (msg *Message, err error) {
 func (m *MboxReader) errorf(format string, args ...interface{}) error {
 	s := fmt.Sprintf(format, args...)
 	return fmt.Errorf("%d:%s", m.currentLine, s)
+}
+
+// parseBlankLine will succeed only if the current line of the mbox file is a
+// blank line.  Blank lines are required by the MBOX format conventions to separate
+// MIME headers from message content.
+func (m *MboxReader) parseBlankLine() error {
+	if (len(m.prefetch) > 1) || (m.prefetch[0] != '\n') {
+		return m.errorf("Blank line expected")
+	}
+	return m.nextLine()
 }
 
 // parseFrom will succeed only if the current line of the mbox file is a properly
