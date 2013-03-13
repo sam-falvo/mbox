@@ -4,8 +4,6 @@
 package mbox
 
 import "io"
-import "os"
-import "fmt"
 
 // A Message represents a single message in the file.
 type Message struct {
@@ -56,7 +54,6 @@ func (r *bodyReader) Read(bs []byte) (n int, err error) {
 	if r.where >= len(r.mbox.prefetch) {
 		r.where = 0
 		r.srcErr = r.mbox.nextLine()
-		fmt.Fprintf(os.Stderr, ">>> %s\n", string(r.mbox.prefetch))
 	}
 	return
 }

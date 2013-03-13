@@ -17,6 +17,9 @@ const mboxWith3Messages = `From foo@bar.com
 Subject: Hello world
 
 Test message
+
+
+
 From foo@bar.com
 From: Foo S. Ball <foo@bar.com>
 To: Anyone W. Cares <anyone@bar.com>
@@ -455,7 +458,7 @@ func TestOkMboxFile80(t *testing.T) {
 
 		_, err = mr.ReadMessage()
 		if err != io.EOF {
-			t.Error("EOF expected after reading all messages")
+			t.Error("EOF expected after reading all messages; getting ", err)
 			return
 		}
 	})

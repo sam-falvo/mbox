@@ -24,6 +24,10 @@ type MboxReader struct {
 // The ReadMessage method parses the input for another complete message.  A message consists of a From
 // header, at least one header, followed by a collection of lines of text corresponding to the body of
 // the message.
+//
+// If no From marker exists, we either don't have an MBOX file, a corrupted MBOX file, or we're at the
+// end of the input stream.  Giving the benefit of the doubt, this package returns io.EOF for an error
+// in any of these situations.
 func (m *MboxReader) ReadMessage() (msg *Message, err error) {
 	msg = &Message{
 		mbox: m,
@@ -82,7 +86,7 @@ func (m *MboxReader) parseFrom() (who string, err error) {
 
 func extractSendingAddress(m *MboxReader) (who string, err error) {
 	if string(m.prefetch[0:5]) != "From " {
-		return "", m.errorf("Mbox file not properly framed; 'From ' expected")
+		return "", io.EOF
 	}
 	if m.prefetchLength < 6 {
 		return "", m.errorf("Sender address expected")
@@ -160,7 +164,7 @@ func isspace(b byte) bool {
 }
 
 // CreateMboxReader decorates an io.Reader instance with an mbox parser.
-// It will produce an error if the file doesn't appear to be an mbox-formatted file.
+// It will produce an io.EOF if the file doesn't appear to be an mbox-formatted file.
 // It determines this by verifying the first five characters of the file matches "From " (note the space).
 // Observe, however, that CreateMboxReader() succeeding does not imply that it actually is a correctly formatted mbox file.
 func CreateMboxReader(s io.Reader) (m *MboxReader, err error) {
