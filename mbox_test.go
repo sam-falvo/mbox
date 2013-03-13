@@ -3,8 +3,6 @@
 package mbox
 
 
-import "fmt"
-import "os"
 import "strings"
 import "testing"
 
