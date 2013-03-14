@@ -3,7 +3,6 @@
 // The mbox package provides a means of reading legacy MBOX-format e-mail files.
 package mbox
 
-
 import (
 	"bufio"
 	"fmt"
@@ -11,14 +10,13 @@ import (
 	"strings"
 )
 
-
 // MboxReader objects represent streams of e-mail messages that happen to be in MBOX format.
 // TODO(sfalvo): Rename this to MsgStream.
 type MboxReader struct {
-	prefetch	[]byte
-	prefetchLength	int
-	currentLine	int
-	r		*bufio.Reader
+	prefetch       []byte
+	prefetchLength int
+	currentLine    int
+	r              *bufio.Reader
 }
 
 // The ReadMessage method parses the input for another complete message.  A message consists of a From
@@ -30,7 +28,7 @@ type MboxReader struct {
 // in any of these situations.
 func (m *MboxReader) ReadMessage() (msg *Message, err error) {
 	msg = &Message{
-		mbox: m,
+		mbox:    m,
 		headers: make(map[string][]string, 0),
 	}
 
@@ -168,9 +166,9 @@ func isspace(b byte) bool {
 // It determines this by verifying the first five characters of the file matches "From " (note the space).
 // Observe, however, that CreateMboxReader() succeeding does not imply that it actually is a correctly formatted mbox file.
 func CreateMboxReader(s io.Reader) (m *MboxReader, err error) {
-	m = &MboxReader {
+	m = &MboxReader{
 		prefetch: make([]byte, 1000),
-		r: bufio.NewReader(s),
+		r:        bufio.NewReader(s),
 	}
 
 	err = m.nextLine()
@@ -200,4 +198,3 @@ func (m *MboxReader) nextLine() error {
 	m.currentLine++
 	return nil
 }
-

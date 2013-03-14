@@ -2,7 +2,6 @@
 
 package mbox
 
-
 import "io"
 import "strings"
 import "testing"
@@ -107,7 +106,7 @@ func withOpenMboxReader(t *testing.T, procname, source string, test func(mr *Mbo
 // withReadMessage sets up a test.  It creates a MboxReader on a
 // known-good mbox file, then reads the first message in the mbox file.  The
 // test then performs whichever checks it likes on the provided message.
-func withReadMessage(t *testing.T, procname string, test func (msg *Message)) {
+func withReadMessage(t *testing.T, procname string, test func(msg *Message)) {
 	withOpenMboxReader(t, procname, mboxWith1Message, func(mr *MboxReader) {
 		msg, err := mr.ReadMessage()
 		if err != nil {
@@ -117,7 +116,6 @@ func withReadMessage(t *testing.T, procname string, test func (msg *Message)) {
 		test(msg)
 	})
 }
-
 
 // expectError() performs a basic sanity check for opening a new MboxReader object.
 // This procedure checks for the absence of an error, and fails the test if found.
@@ -189,7 +187,6 @@ func TestOkMboxFile10(t *testing.T) {
 		t.Error("Returned MboxReader is nil for some reason")
 	}
 }
-
 
 // Given a valid mbox file
 //  AND I successfully open the file
@@ -463,4 +460,3 @@ func TestOkMboxFile80(t *testing.T) {
 		}
 	})
 }
-

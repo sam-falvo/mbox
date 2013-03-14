@@ -7,20 +7,19 @@ import "io"
 
 // A Message represents a single message in the file.
 type Message struct {
-	mbox		*MboxReader
-	headers		map[string][]string
-	SendingAddress	string
+	mbox           *MboxReader
+	headers        map[string][]string
+	SendingAddress string
 }
 
 // A bodyReader implements an io.Reader, confined to the current message to
 // which this instance is bound.
 type bodyReader struct {
-	msg		*Message
-	mbox		*MboxReader
-	where		int
-	srcErr		error
+	msg    *Message
+	mbox   *MboxReader
+	where  int
+	srcErr error
 }
-
 
 // The Headers method provides raw access to the headers of a message.
 func (m *Message) Headers() map[string][]string {
@@ -32,13 +31,12 @@ func (m *Message) Headers() map[string][]string {
 // of the message.
 func (m *Message) BodyReader() io.Reader {
 	br := &bodyReader{
-		msg: m,
+		msg:  m,
 		mbox: m.mbox,
 	}
 
 	return br
 }
-
 
 func (r *bodyReader) Read(bs []byte) (n int, err error) {
 	if r.srcErr != nil {
@@ -57,4 +55,3 @@ func (r *bodyReader) Read(bs []byte) (n int, err error) {
 	}
 	return
 }
-
