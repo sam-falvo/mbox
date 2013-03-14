@@ -2,9 +2,13 @@
 
 package mbox
 
-import "io"
-import "strings"
-import "testing"
+import (
+	"fmt"
+	"io"
+	"os"
+	"strings"
+	"testing"
+)
 
 const mboxWith1Message = `From foo@bar.com
 Subject: Hello world
@@ -90,12 +94,12 @@ func in(needle string, haystack []string) (found bool) {
 
 /* *** Setups of various kinds *** */
 
-// withOpenMboxReader sets up a test.  It creates a MboxReader on a given
+// withOpenMboxStream sets up a test.  It creates a MboxStream on a given
 // string source.  If successful, it invokes the specified test, which then
 // performs whatever checks it sees fit.
-func withOpenMboxReader(t *testing.T, procname, source string, test func(mr *MboxReader)) {
+func withOpenMboxStream(t *testing.T, procname, source string, test func(mr *MboxStream)) {
 	stringReader := strings.NewReader(source)
-	mr, err := CreateMboxReader(stringReader)
+	mr, err := CreateMboxStream(stringReader)
 	if err != nil {
 		t.Error(procname, ": ", err)
 		return
@@ -103,11 +107,11 @@ func withOpenMboxReader(t *testing.T, procname, source string, test func(mr *Mbo
 	test(mr)
 }
 
-// withReadMessage sets up a test.  It creates a MboxReader on a
+// withReadMessage sets up a test.  It creates a MboxStream on a
 // known-good mbox file, then reads the first message in the mbox file.  The
 // test then performs whichever checks it likes on the provided message.
 func withReadMessage(t *testing.T, procname string, test func(msg *Message)) {
-	withOpenMboxReader(t, procname, mboxWith1Message, func(mr *MboxReader) {
+	withOpenMboxStream(t, procname, mboxWith1Message, func(mr *MboxStream) {
 		msg, err := mr.ReadMessage()
 		if err != nil {
 			t.Error(procname, ": ", err)
@@ -117,23 +121,23 @@ func withReadMessage(t *testing.T, procname string, test func(msg *Message)) {
 	})
 }
 
-// expectError() performs a basic sanity check for opening a new MboxReader object.
+// expectError() performs a basic sanity check for opening a new MboxStream object.
 // This procedure checks for the absence of an error, and fails the test if found.
 func expectError(t *testing.T, s string, msg string) {
 	stringReader := strings.NewReader(s)
-	_, err := CreateMboxReader(stringReader)
+	_, err := CreateMboxStream(stringReader)
 	if err == nil {
 		t.Error(msg)
 	}
 }
 
-// expectError() performs a basic sanity check for opening a new MboxReader object.
+// expectError() performs a basic sanity check for opening a new MboxStream object.
 // This procedure checks for the existence of an error, and fails the test if found.
-func expectNoError(t *testing.T, s string, msg string, pmr **MboxReader) {
+func expectNoError(t *testing.T, s string, msg string, pmr **MboxStream) {
 	var err error
 
 	stringReader := strings.NewReader(s)
-	*pmr, err = CreateMboxReader(stringReader)
+	*pmr, err = CreateMboxStream(stringReader)
 	if err != nil {
 		t.Error(msg, ":", err)
 	}
@@ -177,14 +181,14 @@ func TestMalformedMboxFile40(t *testing.T) {
 
 // Given a valid mbox file
 // When I try to open the file
-// Then I expect no error and a valid MboxReader instance.
+// Then I expect no error and a valid MboxStream instance.
 func TestOkMboxFile10(t *testing.T) {
-	var mr *MboxReader
+	var mr *MboxStream
 
 	expectNoError(t, mboxWith1Message, "Mbox file with one valid message should not yield an error.", &mr)
 
 	if mr == nil {
-		t.Error("Returned MboxReader is nil for some reason")
+		t.Error("Returned MboxStream is nil for some reason")
 	}
 }
 
@@ -206,7 +210,7 @@ func TestOkMboxFile20(t *testing.T) {
 // Then I expect a message with correct sending address.
 func TestOkMboxFile30(t *testing.T) {
 	withReadMessage(t, "TestOkMboxFile30", func(msg *Message) {
-		if msg.SendingAddress != "foo@bar.com" {
+		if msg.Sender() != "foo@bar.com" {
 			t.Error("TestOkMboxFile30: Expected valid sending address")
 			return
 		}
@@ -232,7 +236,7 @@ func TestOkMboxFile40(t *testing.T) {
 // When I read from the file
 // Then I expect an error.
 func TestMalformedMboxFile50(t *testing.T) {
-	withOpenMboxReader(t, "TestMalformedMboxFile50", mboxWithMessageNoHeaders, func(mr *MboxReader) {
+	withOpenMboxStream(t, "TestMalformedMboxFile50", mboxWithMessageNoHeaders, func(mr *MboxStream) {
 		_, err := mr.ReadMessage()
 		if err == nil {
 			t.Error("TestMalformedMboxFile50: Error expected for message with no headers")
@@ -246,7 +250,7 @@ func TestMalformedMboxFile50(t *testing.T) {
 // When I read from the file
 // Then I expect an error.
 func TestMalformedMboxFile60(t *testing.T) {
-	withOpenMboxReader(t, "TestMalformedMboxFile60", mboxWithMessageNoAttribute, func(mr *MboxReader) {
+	withOpenMboxStream(t, "TestMalformedMboxFile60", mboxWithMessageNoAttribute, func(mr *MboxStream) {
 		_, err := mr.ReadMessage()
 		if err == nil {
 			t.Error("TestMalformedMboxFile60: Error expected for missing 'key: value' syntax")
@@ -260,7 +264,7 @@ func TestMalformedMboxFile60(t *testing.T) {
 // When I read from the file
 // Then I expect an error.
 func TestMalformedMboxFile70(t *testing.T) {
-	withOpenMboxReader(t, "TestMalformedMboxFile70", mboxWithMessageKeyMissing, func(mr *MboxReader) {
+	withOpenMboxStream(t, "TestMalformedMboxFile70", mboxWithMessageKeyMissing, func(mr *MboxStream) {
 		_, err := mr.ReadMessage()
 		if err == nil {
 			t.Error("TestMalformedMboxFile70: Error expected for missing 'key: value' syntax")
@@ -273,7 +277,7 @@ func TestMalformedMboxFile70(t *testing.T) {
 // When I read the file
 // Then I expect a key and a value of two strings.
 func TestOkMboxFile50(t *testing.T) {
-	withOpenMboxReader(t, "TestOkMboxFile50", mboxWithMessageHeaderWithContinuation, func(mr *MboxReader) {
+	withOpenMboxStream(t, "TestOkMboxFile50", mboxWithMessageHeaderWithContinuation, func(mr *MboxStream) {
 		msg, err := mr.ReadMessage()
 		if err != nil {
 			t.Error("TestOkMboxFile50: ", err)
@@ -304,7 +308,7 @@ func TestOkMboxFile50(t *testing.T) {
 // When I read the message
 // Then I expect to see all three headers.
 func TestOkMboxFile60(t *testing.T) {
-	withOpenMboxReader(t, "TestOkMboxFile60", mboxWithMessage3Headers, func(mr *MboxReader) {
+	withOpenMboxStream(t, "TestOkMboxFile60", mboxWithMessage3Headers, func(mr *MboxStream) {
 		msg, err := mr.ReadMessage()
 		if err != nil {
 			t.Error("TestOkMboxFile60: ", err)
@@ -351,7 +355,7 @@ func TestOkMboxFile60(t *testing.T) {
 // When I read the message
 // Then I expect to access an io.Reader that lets me read in the body.
 func TestOkMboxFile70(t *testing.T) {
-	withOpenMboxReader(t, "TestOkMboxFile70", mboxWith1Message, func(mr *MboxReader) {
+	withOpenMboxStream(t, "TestOkMboxFile70", mboxWith1Message, func(mr *MboxStream) {
 		msg, err := mr.ReadMessage()
 		if err != nil {
 			t.Error("TestOkMboxFile70: ", err)
@@ -384,7 +388,7 @@ func TestOkMboxFile70(t *testing.T) {
 // When I read the messages,
 // Then I expect to see each message in turn.
 func TestOkMboxFile80(t *testing.T) {
-	withOpenMboxReader(t, "TestOkMboxFile80", mboxWith3Messages, func(mr *MboxReader) {
+	withOpenMboxStream(t, "TestOkMboxFile80", mboxWith3Messages, func(mr *MboxStream) {
 		msg1, err := mr.ReadMessage()
 		if err != nil {
 			t.Error("TestOkMboxFile80: ", err)
@@ -459,4 +463,117 @@ func TestOkMboxFile80(t *testing.T) {
 			return
 		}
 	})
+}
+
+/* *** Examples *** */
+
+func ExampleMboxStream() {
+	s := `From user@domain.com
+From: Some User <user@domain.com>
+To: anyone <anyone@anywhere.com>
+Cc: me <me@home-address.com>
+Subject: My first example
+
+Hello world!  This is my first example message.
+
+From another@domain.com
+From: Another User <another@domain.com>
+To: me <me@home-address.com>
+Subject: Your second example
+
+Hey!  I see you've finally completed the MBOX reader library!  Here's hoping
+you get the data you need from the older files.  Now you can finally write that
+Go program to slice and dice data stored in mbox files and send them to
+LogStash!
+
+-- 
+Another User
+>From here until there, I'll be somewhere.
+`
+
+	// Open the mbox file (or, equivalently, create a reader on an existing buffer)
+	reader := strings.NewReader(s)
+	mboxReader, err := CreateMboxStream(reader)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Can't create mbox reader: %#v\n", err)
+		os.Exit(1)
+	}
+
+	// Iterate through each message, and process them sequentially.
+	msgNumber := 0
+	bodyBuf := make([]byte, 1000)
+	for err == nil {
+		var message *Message
+
+		msgNumber++
+		message, err = mboxReader.ReadMessage()
+		if err != nil {
+			continue
+		}
+
+		// Print our message summary, consisting of message number and subject.
+		hs := message.Headers()
+		fmt.Println(msgNumber, hs["Subject"][0])
+
+		// Skip over message body
+		bodyReader := message.BodyReader()
+		for err == nil {
+			_, err = bodyReader.Read(bodyBuf)
+		}
+		if err == io.EOF {
+			// We reached the end of the message normally.
+			// This is expected behavior.
+			err = nil
+		}
+	}
+
+	if err == io.EOF {
+		fmt.Println("Done.")
+	} else if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to read next message: %#v\n", err)
+	}
+	// Output:
+	// 1 My first example
+	// 2 Your second example
+	// Done.
+}
+
+func ExampleMessage_BodyReader_skippingTheBody() {
+	var (
+		err error
+		msg *Message
+	)
+
+	buffer := make([]byte, 1000)
+	bodyReader := msg.BodyReader()
+
+	for err == nil {
+		_, err = bodyReader.Read(buffer)
+	}
+}
+
+func ExampleMessage_BodyReader_savingTheBody() {
+	var (
+		err error
+		msg *Message
+		n   int
+	)
+
+	lines := make([]string, 0)
+	bodyReader := msg.BodyReader()
+	buffer := make([]byte, 1000)
+
+	for err == nil {
+		n, err = bodyReader.Read(buffer)
+		if err != nil {
+			continue
+		}
+		lines = append(lines, string(buffer[0:n]))
+	}
+	if err == io.EOF {
+		// lines now contains the collected body of the most recently
+		// read message.
+	} else {
+		// Some error occurred; process accordingly.
+	}
 }
